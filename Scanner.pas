@@ -10,6 +10,12 @@ var LastError;
 /// Scanner
 ///
 class Scanner;
+var 
+    Source : String;
+    Tokens : List; // of Token
+
+    Current, Start, Line : Integer;
+
 begin
     /// Creates a new Scanner
     ///
@@ -25,7 +31,7 @@ begin
 
     /// Scans Tokens
     ///
-    function ScanTokens();
+    function ScanTokens() : List; // of Token
     begin
         while not IsAtEnd() do
         begin
@@ -40,8 +46,11 @@ begin
     // Scan Token
     //
     procedure ScanToken();
+    var 
+        C : Char;
+
     begin
-        var C := Advance();   
+        C := Advance();   
         case C of
             '(' : AddToken(TOKEN_LEFT_PAREN);
             ')' : AddToken(TOKEN_RIGHT_PAREN);
@@ -91,11 +100,15 @@ begin
     // Scans an Identifier.
     //
     procedure ScanIdentifier();
+    var 
+       Text        : String;
+       TypeOfToken : Any;  // TODO: TokenType
+
     begin
         while IsAlphaNumeric(Peek()) do Advance();
 
-        var Text := Copy(Source, Start, Current);   
-        var TypeOfToken := TOKEN_IDENTIFIER;
+        Text := Copy(Source, Start, Current);   
+        TypeOfToken := TOKEN_IDENTIFIER;
 
         if Keywords.Contains(Text) then
         begin
@@ -116,12 +129,15 @@ begin
 
         while IsDigit(Peek()) do Advance();
 
-        AddToken2(TOKEN_NUMBER, Copy(Source, Start, Current));
+        AddToken(TOKEN_NUMBER, Copy(Source, Start, Current));
     end
 
     // Scans a String
     //
     procedure ScanString();
+    var 
+       Value : String;
+
     begin
         while Peek() <> '"' and not IsAtEnd() do
         begin
@@ -138,20 +154,20 @@ begin
         Advance();
 
         // Trim the surrounding quotes
-        var Value := Copy(Source, Start + 1, Current - 1);
+        Value := Copy(Source, Start + 1, Current - 1);
 
-        AddToken2(TOKEN_STRING, Value);
+        AddToken(TOKEN_STRING, Value);
     end
 
     // Does the character match?  
     //
-    function Match(Expected);
+    function Match(Expected : Char) : Boolean;
     begin
-        if IsAtEnd() then exit False;
-        if Source[Current] <> Expected then exit False;
+        if IsAtEnd() then Exit False; 
+        if Source[Current] <> Expected then Exit False;
 
         Current := Current + 1;
-        exit True;
+        Exit True;
     end
 
     // Returns the current character.
@@ -165,7 +181,7 @@ begin
 
     // Returns the next character.
     //
-    function PeekNext();
+    function PeekNext() : Char;
     begin
        if Current + 1 > Length(Source) then exit #0;
        
@@ -174,16 +190,19 @@ begin
 
     // Adds a Token.
     //
-    procedure AddToken(TypeOfToken);
+    procedure AddToken(TypeOfToken : TokenType);
     begin
-        AddToken2(TypeOfToken, nil);
+        AddToken(TypeOfToken, nil);
     end
 
     // Adds a Token.
     //
-    procedure AddToken2(TypeOfToken, Literal);
+    procedure AddToken(TypeOfToken : TokenType, Literal : Any);
+    var
+       Text : String;
+
     begin
-        var Text := Copy(Source, Start, Current);
+        Text := Copy(Source, Start, Current);
         Tokens.Add(Token(TypeOfToken, Text, Literal, Line));
     end
 
@@ -191,39 +210,43 @@ begin
     //
     function IsAtEnd();
     begin
-        exit Current >= Length(Source);
+        Exit Current >= Length(Source);
     end
 
     // Advance the current character.
     //
-    function Advance();
+    function Advance() : Char;
+    var 
+       ReturnValue : Char;
+
     begin
-        var ReturnValue := Source[Current];
+        ReturnValue := Source[Current];
         Current := Current + 1;
-        exit ReturnValue;
+        
+        Exit ReturnValue;
     end
 
     // Is the character alphabetic?
     //
-    function IsAlpha(c);
+    function IsAlpha(C : Char) : Boolean;
     begin
-        exit (c >= 'a' and c <= 'z') or
-             (c >= 'A' and c <= 'Z') or 
-             (c = '_');
+        Exit (C >= 'a' and C <= 'z') or
+             (C >= 'A' and C <= 'Z') or 
+             (C = '_');
     end
 
     // Is the character alphanumeric?
     //
-    function IsAlphaNumeric(c);
+    function IsAlphaNumeric(C : Char) : Boolean;
     begin
-        exit IsAlpha(c) or IsDigit(c);
+        Exit IsAlpha(C) or IsDigit(C);
     end
 
     // Is the character a digit?
     //
-    IsDigit(c);
+    IsDigit(C : Char);
     begin
-       exit c >= '0' and c <= '9';
+       Exit C >= '0' and C <= '9';
     end
 end
 

@@ -1,6 +1,12 @@
 /// Token
 ///
 class Token;
+var 
+   TypeOfToken : Any;
+   Lexeme      : String;
+   Literal     : Any;
+   LineNumber  : Integer;
+
 begin
     constructor Init(TypeOfToken, Lexeme, Literal, LineNumber);
     begin
@@ -10,14 +16,12 @@ begin
         this.LineNumber := LineNumber;
     end
 
-    function ToString();
+    function ToString() : String;
     begin
        Exit Str(TypeOfToken) +  ' ' + Lexeme + ' ' + Literal;
     end
 end
 
-// Tests creating a new Token.
-//
 test 'New Token';
 begin
     var TheToken := Token(TOKEN_STRING, 'ABC', nil, 1);
@@ -28,8 +32,6 @@ begin
     AssertEqual(1, TheToken.LineNumber); 
 end
 
-// Tests Token's ToString() method.
-//
 test 'Token ToString';
 begin
     var TheToken := Token(TOKEN_STRING, 'ABC', nil, 1);
