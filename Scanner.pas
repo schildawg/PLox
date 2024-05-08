@@ -129,7 +129,7 @@ begin
 
         while IsDigit(Peek()) do Advance();
 
-        AddToken(TOKEN_NUMBER, Copy(Source, Start, Current));
+        AddToken(TOKEN_NUMBER, Ord(Copy(Source, Start, Current)));
     end
 
     // Scans a String
@@ -363,9 +363,7 @@ begin
 
     AssertEqual(TOKEN_NUMBER, Token.TypeOfToken);
     AssertEqual('123', Token.Lexeme);
-
-    // FIXME
-    AssertEqual('123', Token.Literal);
+    AssertEqual(123.0, Token.Literal);
 end
 
 // If a period is encountered while scanning numbers, it should scan for additional numbers for a decimal
@@ -381,9 +379,7 @@ begin
 
     AssertEqual(TOKEN_NUMBER, Token.TypeOfToken);
     AssertEqual('3.14', Token.Lexeme);
-
-    // FIXME
-    AssertEqual('3.14', Token.Literal);
+    AssertEqual(3.14, Token.Literal);
 end
 
 // Test scanning an identifier.  The lexeme should contain the name, and the literal value should be None.

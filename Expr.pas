@@ -1,6 +1,11 @@
 /// Binary!
 ///
 class BinaryExpr;
+var
+   Left  : Any;
+   Op    : Any;
+   Right : Any;
+   
 begin
     constructor Init(Left, Op, Right);
     begin
@@ -33,6 +38,9 @@ end
 /// Literal!
 ///
 class LiteralExpr;
+var
+    Value : Any;
+    
 begin
     constructor Init(Value);
     begin
