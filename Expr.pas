@@ -1,6 +1,10 @@
+class Expr;
+begin
+end
+
 /// Binary!
 ///
-class BinaryExpr;
+class BinaryExpr (Expr);
 var
    Left  : Any;
    Op    : Any;
@@ -22,7 +26,7 @@ end
 
 /// Grouping!
 ///
-class GroupingExpr;
+class GroupingExpr (Expr);
 begin
     constructor Init(Expr);
     begin
@@ -37,7 +41,7 @@ end
 
 /// Literal!
 ///
-class LiteralExpr;
+class LiteralExpr (Expr);
 var
     Value : Any;
     
@@ -55,7 +59,7 @@ end
 
 /// Unary!
 ///
-class UnaryExpr;
+class UnaryExpr (Expr);
 begin
     constructor Init(Op, Value);
     begin

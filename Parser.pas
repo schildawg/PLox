@@ -11,7 +11,7 @@
 /// 
 class Parser;
 var 
-   Tokens :  List;
+   Tokens :  List of Token;
    Current : Integer;
 
 begin
@@ -24,18 +24,19 @@ begin
     end
 
     // Parses an expression.  Calls Equality.
-    function Expression() : Any;
+    function Expression() : Expr;
     begin
        Exit Equality();
     end
 
     // Parses an equality (!= ==).  Calls Comparison if no match.
     //
-    function Equality() : Any;
+    function Equality() : Expr;
     var 
-       TheExpr  : Any;
-       Operator : Any;
-
+       TheExpr  : Expr;
+       Operator : Token;
+       Right    : Expr;
+       
     begin
        TheExpr := Comparison();
 
@@ -52,10 +53,10 @@ begin
 
     // Parses a comparison (> >= < <=).  Calls Term if no match.
     //
-    function Comparison() : Any;
+    function Comparison() : Expr;
     var
-        TheExpr : Any;
-        Operator : Any;
+        TheExpr : Expr;
+        Operator : Token;
 
     begin
         TheExpr := Term();
@@ -72,10 +73,10 @@ begin
 
     // Parses a term (- +).  Calls Factor if no match.
     //
-    function Term() : Any;
+    function Term() : Expr;
     var
-        TheExpr : Any;
-        Operator : Any;
+        TheExpr : Expr;
+        Operator : Token;
 
     begin
         TheExpr := Factor();
@@ -91,11 +92,11 @@ begin
 
     // Parses a term expression (/ *).  Calls Unary if no match.
     //
-    function Factor() : Any;
+    function Factor() : Expr;
     var
-        TheExpr  : Any;
-        Operator : Any;
-        Right    : Any;
+        TheExpr  : Expr;
+        Operator : Token;
+        Right    : Expr;
 
     begin
         TheExpr := Unary();
@@ -111,10 +112,10 @@ begin
 
     // Parses an unary expression (! -).  Calls Primary if no match.
     //
-    function Unary() : Any;
+    function Unary() : Expr;
     var
-       Operator : Any;
-       Right    : Any;
+       Operator : Token;
+       Right    : Expr;
 
     begin
         if Match (TOKEN_BANG) or Match (TOKEN_MINUS) then
@@ -134,9 +135,9 @@ begin
     // Throws an exception if grouping has no closing parenthesis.
     // Throws an exception if no expression matched.
     //
-    function Primary() : Any;
+    function Primary() : Expr;
     var 
-        TheExpr : Any;
+        TheExpr : Expr;
 
     begin
         if Match (TOKEN_FALSE) then Exit LiteralExpr(False);
@@ -172,7 +173,7 @@ begin
 
     // Returns an error.
     //
-    function Error(TheToken: Any, Message : Any) : Any;
+    function Error(TheToken: Token, Message : Any) : Any;
     begin
         Exit Message;
         
@@ -184,7 +185,7 @@ begin
 
     // If current token matches a type then advance, otherwise throw an error.
     //
-    function Consume (TypeOfToken : TokenType, Message : String) : Any;
+    function Consume (TypeOfToken : TokenType, Message : String) : Token;
     begin
         if Check (TypeOfToken) then Exit Advance();
 
@@ -202,7 +203,7 @@ begin
 
     // Returns the current token, and moves to next.
     //
-    function Advance() : Any;
+    function Advance() : Token;
     begin
        if Not IsAtEnd() then Current := Current + 1;
 
@@ -218,14 +219,14 @@ begin
 
     // Gets the current token.
     //
-    function Peek() : Any;
+    function Peek() : Token;
     begin
        Exit Tokens[Current];
     end
 
     // Gets the previous token.
     //
-    function Previous() : Any;
+    function Previous() : Token;
     begin
        Exit Tokens[Current - 1];
     end

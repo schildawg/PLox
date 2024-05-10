@@ -12,7 +12,7 @@ var LastError;
 class Scanner;
 var 
     Source : String;
-    Tokens : List; // of Token
+    Tokens : List of Token;
 
     Current, Start, Line : Integer;
 
@@ -31,7 +31,7 @@ begin
 
     /// Scans Tokens
     ///
-    function ScanTokens() : List; // of Token
+    function ScanTokens() : List;
     begin
         while not IsAtEnd() do
         begin
