@@ -19,7 +19,7 @@
     function VisitGrouping(Expr);
     begin
        var Exprs := List();
-       Exprs.Add(Expr.Expr);
+       Exprs.Add(Expr.Expression);
 
        Exit Parenthesize('group', Exprs);
     end
@@ -33,7 +33,7 @@
     function VisitUnary(Expr);
     begin
        var Exprs := List();
-       Exprs.Add(Expr.Value);
+       Exprs.Add(Expr.Right);
 
        Exit Parenthesize(Expr.Op.Lexeme, Exprs);
     end

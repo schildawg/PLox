@@ -27,10 +27,13 @@ end
 /// Grouping!
 ///
 class GroupingExpr (Expr);
+var
+    Expression : Expr;
+
 begin
-    constructor Init(Expr);
+    constructor Init(Expression : Expr);
     begin
-        this.Expr := Expr;
+        this.Expression := Expression;
     end
 
     function Accept(Visitor);
@@ -43,10 +46,10 @@ end
 ///
 class LiteralExpr (Expr);
 var
-    Value : Any;
+    Value : Expr;
     
 begin
-    constructor Init(Value);
+    constructor Init(Value : Expr);
     begin
         this.Value := Value;
     end
@@ -60,11 +63,15 @@ end
 /// Unary!
 ///
 class UnaryExpr (Expr);
+var
+   Op    : Token;
+   Right : Expr;
+
 begin
-    constructor Init(Op, Value);
+    constructor Init(Op : Token, Right : Expr);
     begin
         this.Op := Op;
-        this.Value := Value;
+        this.Right := Right;
     end
 
     function Accept(Visitor);

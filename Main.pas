@@ -4,11 +4,12 @@ uses Parser;
 uses Token;
 uses TokenType;
 uses Scanner;
+uses Interpreter;
 
 /// Main
 ///
 begin
-    var TheScanner := Scanner('"ABC"');
+    var TheScanner := Scanner('!false');
     var Tokens := TheScanner.ScanTokens();
     var TheParser := Parser(Tokens);
 

@@ -302,7 +302,7 @@ begin
 
     var Result := TheParser.Primary();
 
-    AssertEqual(1.0, Result.Expr.Value);
+    AssertEqual(1.0, Result.Expression.Value);
 end
 
 // When parsing parenthesis, primary should return an error when there is an unmatched closing parenthesis.
@@ -353,7 +353,7 @@ begin
     var Result := TheParser.Unary();
 
     AssertEqual(TOKEN_MINUS, Result.Op.TypeOfToken);
-    AssertEqual(1.0, Result.Value.Value);
+    AssertEqual(1.0, Result.Right.Value);
 end
 
 // Parsing ! should return a Unary
@@ -366,7 +366,7 @@ begin
     var Result := TheParser.Unary();
 
     AssertEqual(TOKEN_BANG, Result.Op.TypeOfToken);
-    AssertEqual(True, Result.Value.Value);
+    AssertEqual(True, Result.Right.Value);
 end
 
 // Parsing != should return a Binary expression.
