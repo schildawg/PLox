@@ -5,25 +5,31 @@ uses Token;
 uses TokenType;
 uses Scanner;
 uses Interpreter;
+uses Stmt;
+uses Environment;
 
 /// Main
 ///
 begin
-    var TheScanner := Scanner('!false');
+    var TheScanner := Scanner(
+        '
+        var a = 1;
+        a = 2;
+
+        var b = 2;
+
+        {
+            print "================"; 
+            print a + b; 
+        }
+
+        ');
+
     var Tokens := TheScanner.ScanTokens();
     var TheParser := Parser(Tokens);
+    var TheInterpreter := Interpreter();
 
-    TheParser.Expression();
+    var Stmts := TheParser.Parse();
     
-        
-     for var I := 0; I < Tokens.Length; I := I + 1 do
-     begin
-         var TheToken := Tokens[I];
-         var TheType := TheToken.TypeOfToken;
-   
-         if TheType = TOKEN_IDENTIFIER or TheType = TOKEN_NUMBER or TheType = TOKEN_STRING then
-             WriteLn(TheType + ': ' + TheToken.Lexeme);
-         else
-            WriteLn(TheType);
-     end
+    TheInterpreter.Interpret (Stmts);
 end

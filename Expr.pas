@@ -18,7 +18,7 @@ begin
         this.Right := Right;
     end
 
-    function Accept(Visitor);
+    function Accept (Visitor);
     begin
        Exit Visitor.VisitBinary(this);
     end
@@ -42,7 +42,7 @@ begin
     end
 end
 
-/// Literal!
+/// Literal Expression!
 ///
 class LiteralExpr (Expr);
 var
@@ -60,7 +60,45 @@ begin
     end
 end
 
-/// Unary!
+/// Variable Expression!
+///
+class VariableExpr (Expr);
+var
+    Name : Token;
+    
+begin
+    constructor Init(Name : Token);
+    begin
+        this.Name := Name;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitVariableExpr (this);
+    end
+end
+
+/// Assign Expression!
+///
+class AssignExpr (Expr);
+var
+    Name  : Token;
+    Value : Expr;
+    
+begin
+    constructor Init(Name : Token, Value : Expr);
+    begin
+        this.Name := Name;
+        this.Value := Value;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitAssignExpr (this);
+    end
+end
+
+/// Unary Expression!
 ///
 class UnaryExpr (Expr);
 var

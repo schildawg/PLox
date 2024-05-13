@@ -1,5 +1,23 @@
 class Interpreter;
+var 
+    Env : Any;
+
 begin
+    constructor Init ();
+    begin
+        this.Env := Environment();
+    end
+
+    /// Interprets a list of statements
+    ///
+    procedure Interpret (Statements : Any);
+    begin
+        for var I : Integer := 0; I < Statements.Length; I := I + 1 do
+        begin
+           Execute (Statements[I]);     
+        end 
+    end
+
     /// Interprets a literal value.
     ///
     function VisitLiteral (TheExpr : LiteralExpr) : Any;
@@ -28,6 +46,13 @@ begin
             TOKEN_MINUS : Exit -Right;
             TOKEN_BANG  : Exit Not IsTruthy(Right);
         end           
+    end
+
+    /// Interprets a variable expression.
+    ///
+    function VisitVariableExpr (TheExpr : VariableExpr);
+    begin
+        Exit Env.Get (TheExpr.Name);
     end
 
     /// Interprets a binary expression.
@@ -79,6 +104,87 @@ begin
     function Evaluate(TheExpr : Any) : Any;   // TODO: Expr
     begin
         Exit TheExpr.Accept(this);
+    end
+
+    /// Runs a statment.
+    ///
+    procedure Execute (TheStmt : Any);
+    begin
+        TheStmt.Accept (this);
+    end
+
+    /// Runs a list of statements in a new environment scope.
+    ///
+    procedure ExecuteBlock (Statements : Any, NewEnv : Any);
+    begin
+        var PreviousEnv := this.Env;
+        
+        // try 
+        NewEnv.Enclosing := this.Env;
+        this.Env := NewEnv;
+
+        for var I := 0; I < Statements.Length; I := I + 1 do
+        begin
+           Execute (Statements[I]);
+        end
+        
+        // finally
+        this.Env := PreviousEnv;
+    end
+
+    /// Runs a block statement.
+    ///
+    procedure VisitBlockStmt (TheStmt : BlockStmt);
+    begin
+        var NewEnv : Environment := Environment();
+        NewEnv.Enclosing := Env;
+
+        ExecuteBlock (TheStmt.Statements, NewEnv);
+    end
+
+    /// Runs an expression statment.
+    ///
+    procedure VisitExpressionStmt (Stmt : ExpressionStmt);
+    begin
+        Evaluate (Stmt.Expression);
+    end
+
+    /// Runs a print statement
+    ///
+    procedure VisitPrintStmt (Stmt : PrintStmt);
+    var
+        Value : Any;
+
+    begin
+        Value := Evaluate (Stmt.Expression);
+        WriteLn (Value);
+    end
+
+    /// Runs a variable statement
+    ///
+    procedure VisitVarStmt (Stmt : VarStmt);
+    var
+        Value : Any;
+
+    begin
+        if Stmt.Initializer <> Nil then
+        begin
+            Value := Evaluate (Stmt.Initializer);
+        end
+
+        Env.Define (Stmt.Name.Lexeme, Value);
+    end
+
+    // Evaluates an assign expression.
+    //
+    function VisitAssignExpr (Expr : AssignExpr) : Any;
+    var
+        Value : Any;
+
+    begin
+        Value := Evaluate (Expr.Value);
+        Env.Assign (Expr.Name, Value);
+        Exit Value;
     end
 end
 
@@ -829,4 +935,53 @@ begin
 
     // Assert
     AssertEqual(True, Value);
+end
+
+// Print statements should display the expression to the console.  For now there are no side effects to test. 
+//
+test 'Execute Print Statement';
+begin
+    var TheScanner := Scanner ('print 123;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    // TODO: Figure out how to assert.
+end
+   
+// A variable declaration should define a variable in environment and allow a value to be assigned to it.
+//
+test 'Execute Expression Statement';
+begin
+    var TheScanner := Scanner ('var test = 1; test = 2;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(2.0, Value);    
+end
+
+// Verifies that a block can be executed.
+//
+test 'Execute Block Statement';
+begin
+    var TheScanner := Scanner ('var test = 1; {test = 5;}');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(5.0, Value);    
 end

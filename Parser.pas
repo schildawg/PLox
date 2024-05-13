@@ -23,10 +23,142 @@ begin
        this.Current := 0;
     end
 
+    /// Parses a list of statements.
+    ///
+    function Parse () : List;
+    var 
+        Statements : List of Stmt;
+
+    begin
+        Statements := List();
+        while Not IsAtEnd () do
+        begin
+            Statements.Add (Declaration ());
+        end  
+        Exit Statements;
+    end
+
+    /// Parses a statement.
+    ///
+    function Statement ();
+    begin
+        if Match (TOKEN_PRINT) then Exit PrintStatment();
+        if Match (TOKEN_LEFT_BRACE) then Exit BlockStmt (Block());
+
+        Exit ExpressionStatement ();
+    end
+
+    /// Parses a print statement
+    /// 
+    function PrintStatment () : Stmt;
+    var
+        Value : Expr;
+    
+    begin
+        Value := Expression();
+        Consume (TOKEN_SEMICOLON, 'Expect ";" after value.');
+        
+        Exit PrintStmt (Value);
+    end
+ 
+    /// Parses a var declaration.
+    ///
+    function VarDeclaration ();
+    var 
+       Name : Token;
+       Initializer : Expr;
+
+    begin
+        Name := Consume (TOKEN_IDENTIFIER, 'Expect variable name.');
+        
+        // TODO: Nil shouldn't make type mismatch.
+        // Initializer := Nil;
+        if Match (TOKEN_EQUAL) then
+        begin
+            Initializer := Expression();
+        end 
+
+        Consume (TOKEN_SEMICOLON, 'Expect ";" after variable declaration.');
+        Exit VarStmt (Name, Initializer);
+    end
+
+    /// Parses an expression statement
+    ///
+    function ExpressionStatement () : Stmt;
+    var
+       TheExpr : Expr;
+    
+    begin
+        TheExpr := Expression();
+        Consume(TOKEN_SEMICOLON, 'Expect ";" after expression.');
+
+        Exit ExpressionStmt (TheExpr);
+    end
+
+    // Parses a block of statements.
+    //
+    function Block () : List;
+    var
+       Statements : List of Statement;
+
+    begin
+        Statements := List();
+
+        while Not Check (TOKEN_RIGHT_BRACE) do
+        begin
+            Statements.Add (Declaration ());
+        end 
+        
+        Consume (TOKEN_RIGHT_BRACE, 'Expect "}" after block.');
+        Exit Statements;
+    end
+
+    // Parses an assignment.
+    //
+    function Assignment () : Expr;
+    var
+       TheExpr : Expr;
+       Equals  : Token;
+       Value   : Expr;
+    
+    begin
+        TheExpr := Equality();
+
+        if Match (TOKEN_EQUAL) then
+        begin
+            Equals := Previous ();
+            Value  := Assignment ();
+
+            if TheExpr.ClassName = 'VariableExpr' then
+            begin
+                Exit AssignExpr (TheExpr.Name, Value);
+            end
+            raise 'Invalid assignment target.';
+        end
+        Exit TheExpr;
+    end
+
     // Parses an expression.  Calls Equality.
     function Expression() : Expr;
     begin
-       Exit Equality();
+       Exit Assignment ();
+    end
+
+    
+    // Parses a declaration.
+    //
+    function Declaration();
+    begin
+        //try 
+            if Match (TOKEN_VAR) then Exit VarDeclaration();
+            Exit Statement ();
+        //except
+        //    on e : String do 
+        //        begin
+        //           WriteLn (e);
+                   // Synchronize ();
+        //        end
+        //end
     end
 
     // Parses an equality (!= ==).  Calls Comparison if no match.
@@ -147,6 +279,11 @@ begin
         if Match (TOKEN_NUMBER) or Match (TOKEN_STRING) then
         begin
             Exit LiteralExpr (Previous().Literal);
+        end
+
+        if Match (TOKEN_IDENTIFIER) then
+        begin
+           Exit VariableExpr (Previous());
         end
 
         if Match (TOKEN_LEFT_PAREN) then
@@ -508,4 +645,166 @@ begin
     AssertEqual(1.0, Result.Left.Value);
     AssertEqual(2.0, Result.Right.Value);
     AssertEqual(TOKEN_LESS_EQUAL, Result.Op.TypeOfToken);
+end
+
+// Tests parsing a print statement.
+//
+test 'Parse Print Statement';
+begin
+    var TheScanner := Scanner ('print 123;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('PrintStmt', Result.ClassName);
+end
+
+// Print statement should end with a semicolon.
+//
+test 'Parse Print Expect Semicolon';
+begin
+    var TheScanner := Scanner ('print 123');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ";" after value.', e);
+                Exit;
+            end
+    end
+    Fail('No exception raised.');
+end
+
+// Test parsing an expression statement.
+//
+test 'Parse Expression Statement';
+begin
+    var TheScanner := Scanner ('a = 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('ExpressionStmt', Result.ClassName);
+end
+
+// Should not be able to assign to a rvalue.
+//
+test 'Parse Expression Invalid Assignment';
+begin
+    var TheScanner := Scanner ('1 = 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+               AssertEqual('Invalid assignment target.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Expression statement should end with a semicolon.
+//
+test 'Parse Expression Expect Semicolon';
+begin
+    var TheScanner := Scanner ('a = 1');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+               AssertEqual('Expect ";" after expression.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Tests parsing a declaration (var statement).
+//
+test 'Parse Var Statement';
+begin
+    var TheScanner := Scanner ('var a = 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertEqual('VarStmt', Result.ClassName);
+end
+
+// The left expression of a declaration should be a variable.
+//
+test 'Parse Var Expect Variable Name';
+begin
+    var TheScanner := Scanner ('var true = 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+               AssertEqual('Expect variable name.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// A declaration should end with a semicolon.
+//
+test 'Parse Var Expect Semicolon';
+begin
+    var TheScanner := Scanner ('var a = 1');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+               AssertEqual('Expect ";" after variable declaration.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Verify that block statements are parsed successfully.
+//
+test 'Parse Block Statement';
+begin
+    var TheScanner := Scanner ('{var a = 1;}');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertEqual('BlockStmt', Result.ClassName);
+end
+
+// Parsing a block should return a parse error if it is does not have a closing brace.
+//
+test 'Parse Block Expect Close';
+begin
+    var TheScanner := Scanner ('{ var a = 1;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+               AssertEqual('Expect expression!', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
 end
