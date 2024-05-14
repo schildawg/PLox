@@ -40,12 +40,114 @@ begin
 
     /// Parses a statement.
     ///
-    function Statement ();
+    function Statement () : Stmt;
     begin
+        if Match (TOKEN_IF) then Exit IfStatement();
+        if Match (TOKEN_WHILE) then Exit WhileStatement();
+        if Match (TOKEN_FOR) then Exit ForStatement();
         if Match (TOKEN_PRINT) then Exit PrintStatment();
         if Match (TOKEN_LEFT_BRACE) then Exit BlockStmt (Block());
 
         Exit ExpressionStatement ();
+    end
+
+    /// Parses an if statement
+    ///
+    function IfStatement () : Stmt;
+    var
+        Condition  : Expr;
+        ThenBranch : Stmt;
+        ElseBranch : Stmt;
+
+    begin
+        Consume (TOKEN_LEFT_PAREN, 'Expect "(" after if.');
+        Condition := Expression();
+        Consume (TOKEN_RIGHT_PAREN, 'Expect ")" after if condition.');
+
+        ThenBranch := Statement ();
+        if Match (TOKEN_ELSE) then
+        begin
+            ElseBranch := Statement ();
+        end
+
+        Exit IfStmt (Condition, ThenBranch, ElseBranch);
+    end
+
+    /// Parses a for statement
+    ///
+    function ForStatement () : Stmt;
+    var
+        Initializer : Stmt;
+        Increment   : Expr;
+        Condition   : Expr;
+        Body        : Stmt;
+        
+        StmtList    : List of Stmt;
+        WhileList   : List of Stmt;
+
+    begin
+        Consume (TOKEN_LEFT_PAREN, 'Expect "(" after for.');
+
+        if Match (TOKEN_SEMICOLON) then
+            Initializer := Initializer;   // Yeah, should be Nil
+        else if Match (TOKEN_VAR) then
+            Initializer := VarDeclaration ();
+        else 
+            Initializer := ExpressionStatement();
+
+        if Not Check (TOKEN_SEMICOLON) then
+        begin
+           Condition := Expression ();
+        end
+        Consume (TOKEN_SEMICOLON, 'Expect ";" after loop condition.'); 
+
+        if Not Check (TOKEN_RIGHT_PAREN) then
+        begin
+           Increment := Expression ();
+        end
+        Consume (TOKEN_RIGHT_PAREN, 'Expect ")" after for clauses.');  
+
+        Body := Statement ();
+        
+        if Increment <> Nil then
+        begin
+            StmtList := List();
+            StmtList.Add (Body);
+            StmtList.Add (ExpressionStmt (Increment));
+
+            Body := BlockStmt (StmtList);
+        end
+
+        if Condition = Nil then Condition := LiteralExpr (True);
+        Body := WhileStmt(Condition, Body);
+
+        if Initializer <> Nil then
+        begin
+            WhileList := List();
+            WhileList.Add (Initializer);
+            WhileList.Add (Body);
+
+            Body := BlockStmt (WhileList);
+        end
+
+        Exit Body;
+    end
+
+    /// Parses a while statement
+    ///
+    function WhileStatement () : Stmt;
+    var
+        Condition : Expr;
+        Body      : Stmt;
+
+    begin
+        Consume (TOKEN_LEFT_PAREN, 'Expect "(" after while.');
+        Condition := Expression();
+        Consume (TOKEN_RIGHT_PAREN, 'Expect ")" after condition.');
+
+        Body := Statement ();
+
+        Exit WhileStmt (Condition, Body);
     end
 
     /// Parses a print statement
@@ -63,7 +165,7 @@ begin
  
     /// Parses a var declaration.
     ///
-    function VarDeclaration ();
+    function VarDeclaration () : Stmt;
     var 
        Name : Token;
        Initializer : Expr;
@@ -122,7 +224,7 @@ begin
        Value   : Expr;
     
     begin
-        TheExpr := Equality();
+        TheExpr := ParseOr ();
 
         if Match (TOKEN_EQUAL) then
         begin
@@ -137,6 +239,48 @@ begin
         end
         Exit TheExpr;
     end
+
+    // Parses an or expression.
+    //
+    function ParseOr () : Expr;
+    var
+       TheExpr : Expr;
+       Op      : Token;
+       Right   : Expr;
+
+    begin
+        TheExpr := ParseAnd ();
+
+        while Match (TOKEN_OR) do
+        begin
+            Op := Previous ();
+            Right := ParseAnd ();
+            TheExpr := LogicalExpr (TheExpr, Op, Right);
+        end
+       
+        Exit TheExpr;
+    end
+
+     // Parses an and expression.
+    //
+    function ParseAnd () : Expr;
+    var
+       TheExpr : Expr;
+       Op      : Token;
+       Right   : Expr;
+
+    begin
+        TheExpr := Equality ();
+
+        while Match (TOKEN_AND) do
+        begin
+            Op := Previous ();
+            Right := Equality ();
+            TheExpr := LogicalExpr (TheExpr, Op, Right);
+        end
+       
+        Exit TheExpr;
+    end   
 
     // Parses an expression.  Calls Equality.
     function Expression() : Expr;
@@ -804,6 +948,199 @@ begin
             begin
                AssertEqual('Expect expression!', e);
                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Test parsing an or expression.
+//
+test 'Parse Or';
+begin
+    var TheScanner := Scanner ('true or false');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.ParseOr();
+
+    AssertEqual('LogicalExpr', Result.ClassName);
+end
+
+// Test parsing an and expression.
+//
+test 'Parse And';
+begin
+    var TheScanner := Scanner ('true and false');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.ParseOr();
+
+    AssertEqual('LogicalExpr', Result.ClassName);
+end
+
+// Test parsing an if statement.
+//
+test 'Parse If Statement';
+begin
+    var TheScanner := Scanner ('if (true) print true; else print false;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('IfStmt', Result.ClassName);
+end  
+
+// Parsing an if statement without an opening paren should return a parse error.
+// 
+test 'Parse If Expect Opening Parenthesis';
+begin
+    var TheScanner := Scanner ('if true) print true; else print false;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect "(" after if.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end  
+
+// Parsing an if statement without a closing paren should return a parse error.
+//
+test 'Parse If Expect Closing Parenthesis';
+begin
+    var TheScanner := Scanner ('if (true print true; else print false;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ")" after if condition.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end  
+
+// Test parsing a while statement.
+//
+test 'Parse While Statement';
+begin
+    var TheScanner := Scanner ('while (true) print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('WhileStmt', Result.ClassName);
+end  
+
+// A while statement missing a left paren should return a parse error.
+//
+test 'Parse While Expect Opening Parenthesis';
+begin
+    var TheScanner := Scanner ('while true) print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect "(" after while.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end  
+
+// A while statement missing the right paren should return a parse error.
+//
+test 'Parse While Expect Closing Parenthesis';
+begin
+    var TheScanner := Scanner ('while (true print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ")" after condition.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end  
+
+// A for statement should return an elaborate while statement.
+//
+test 'Parse For Statement';
+begin
+    var TheScanner := Scanner ('for (var i = 0; i < 10; i = i + 1) print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('BlockStmt', Result.ClassName);
+end  
+
+// For statement missing opening paren should return a parse error.
+//
+test 'Parse For Expect Opening Parenthesis';
+begin
+    var TheScanner := Scanner ('for var i = 0; i < 10; i = i + 1) print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect "(" after for.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end  
+
+// For statement missing closing paren should return a parse error.
+//
+test 'Parse For Expect Closing Parenthesis';
+begin
+    var TheScanner := Scanner ('for (var i = 0; i < 10; i = i + 1 print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ")" after for clauses.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end  
+
+// For statement missing a semicolon after the initializer should return a parse error.
+//
+test 'Parse For Expect Semicolon';
+begin
+    var TheScanner := Scanner ('for (var i = 0) print true;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ";" after variable declaration.', e);
+                Exit;
             end
     end
     Fail('No exception thrown.');

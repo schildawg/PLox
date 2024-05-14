@@ -12,7 +12,7 @@ begin
     ///
     procedure Define (Name : String, Value : Any);
     begin
-        Values.Put (Name, Value);
+        Values.Put (Str(Name), Value);
     end
 
     /// Assigns a value to an existing variable.  Walks up the enclosing Environments until it finds the variable defined.
@@ -25,7 +25,7 @@ begin
     begin
         if Values.Contains(Name.Lexeme) then
         begin
-            Values.Put (Name.Lexeme, Value);
+            Values.Put (Str(Name.Lexeme), Value);
             Exit;
         end
         if Enclosing <> Nil then 
@@ -45,9 +45,9 @@ begin
     ///
     function Get (Name : Token) : Any;
     begin
-        if Values.Contains( Name.Lexeme) then
+        if Values.Contains( Str(Name.Lexeme)) then
         begin
-            Exit Values.Get (Name.Lexeme);
+            Exit Values.Get (Str(Name.Lexeme));
         end
         if Enclosing <> Nil then Exit Enclosing.Get(Name);
 

@@ -13,16 +13,14 @@ uses Environment;
 begin
     var TheScanner := Scanner(
         '
-        var a = 1;
-        a = 2;
+            var a = 0;
+            var temp;
 
-        var b = 2;
-
-        {
-            print "================"; 
-            print a + b; 
-        }
-
+            for (var b = 1; a < 1000; b = temp + b) {
+                print a;
+                temp = a;
+                a = b;
+            }
         ');
 
     var Tokens := TheScanner.ScanTokens();

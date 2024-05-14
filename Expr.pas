@@ -2,7 +2,7 @@ class Expr;
 begin
 end
 
-/// Binary!
+/// Binary Expression!
 ///
 class BinaryExpr (Expr);
 var
@@ -21,6 +21,28 @@ begin
     function Accept (Visitor);
     begin
        Exit Visitor.VisitBinary(this);
+    end
+end
+
+/// Logical Expression!
+///
+class LogicalExpr (Expr);
+var
+   Left  : Any;
+   Op    : Any;
+   Right : Any;
+   
+begin
+    constructor Init(Left, Op, Right);
+    begin
+        this.Left := Left;
+        this.Op := Op;
+        this.Right := Right;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitLogical(this);
     end
 end
 

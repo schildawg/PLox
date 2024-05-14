@@ -25,6 +25,25 @@ begin
         Exit TheExpr.Value; 
     end
 
+    /// Interprets a logical expression (and, or).
+    ///
+    function VisitLogical (TheExpr : LogicalExpr) : Any;
+    var
+        Left : Any;
+
+    begin
+        Left := Evaluate (TheExpr.Left);
+
+        if TheExpr.Op.TypeOfToken = TOKEN_OR then
+            begin
+                if IsTruthy (Left) then Exit Left;
+            end
+        else
+            if Not IsTruthy (Left) then Exit Left;
+        
+        Exit Evaluate(TheExpr.Right);
+    end
+
     /// Interprets a grouping expression.
     ///
     function VisitGrouping (TheExpr : GroupingExpr) : Any;
@@ -91,6 +110,8 @@ begin
         Exit True; 
     end
 
+    // Are objects equal?
+    //
     function IsEqual (A : Any, B : Any) : Boolean;
     begin
        if A = Nil and B = Nil then Exit True;
@@ -147,6 +168,26 @@ begin
     procedure VisitExpressionStmt (Stmt : ExpressionStmt);
     begin
         Evaluate (Stmt.Expression);
+    end
+
+    /// Runs an if statment.
+    ///
+    procedure VisitIfStmt (Stmt : IfStmt);
+    begin
+        if IsTruthy (Evaluate (Stmt.Condition)) then
+            Execute (Stmt.ThenBranch);
+        else if Stmt.ElseBranch <> Nil then
+            Execute (Stmt.ElseBranch);
+    end
+
+    /// Runs a while statment.
+    ///
+    procedure VisitWhileStmt (Stmt : WhileStmt);
+    begin
+        while IsTruthy (Evaluate (Stmt.Condition)) do
+        begin
+            Execute (Stmt.Body);
+        end
     end
 
     /// Runs a print statement
@@ -982,6 +1023,159 @@ begin
     TheInterpreter.Interpret(Statements);
 
     var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(5.0, Value);    
+end
+
+// Tests that if statement is executed when the expression evaluates to true.
+//
+test 'Execute If Statement';
+begin
+    var TheScanner := Scanner ('      
+        var a = 0; 
+        var test = true;  
+
+        if (test) {
+            a = 5;
+        }  
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
+    
+    AssertEqual(5.0, Value);    
+end
+
+// If an else clause exists, it should be executed when the expression evaluates to false.
+//
+test 'Execute Else Statement';
+begin
+    var TheScanner := Scanner ('      
+        var test = false;  
+        var a = 0;
+
+        if (test) {
+            a = 5;
+        }
+        else {
+            a = 6;
+        }
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
+    
+    AssertEqual(6.0, Value);    
+end
+
+// Tests executing the logical or operator.
+//
+test 'Execute Logical Or';
+begin
+    var TheScanner := Scanner ('var test = true or false;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(True, Value);    
+end
+
+// Tests executing the logical and operator.
+//
+test 'Execute Logical And';
+begin
+    var TheScanner := Scanner ('var test = true and false;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(False, Value);    
+end
+
+
+// When evaluating logical operators values nil is treated as "truthy" false, and all other values as true.
+//
+test 'Execute Logical Truthy';
+begin
+    var TheScanner := Scanner ('var test = "hi" or 0 or false and nil;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual('hi', Value);    
+end
+
+// Tests executing a while loop.
+//
+test 'Execute While Loop';
+begin
+    var TheScanner := Scanner ('
+        var a = 0;
+        var b = true;
+        
+        while (b) {
+            b = false;
+            a = 42;
+        }   
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
+    
+    AssertEqual(42.0, Value);    
+end
+
+// Tests executing a for loop.  For loops are not directly supported in the Interpreter, but are syntactic sugar
+// in the parser creating a while loop to be run.  
+test 'Execute For Loop';
+begin
+    var TheScanner := Scanner ('
+        var a = 0;
+        var temp;
+        
+        for (var b = 1; a < 5; b = temp + b) {
+            temp = a;
+            a = b;
+        }  
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
     
     AssertEqual(5.0, Value);    
 end
