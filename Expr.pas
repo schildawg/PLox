@@ -140,6 +140,28 @@ begin
     end
 end
 
+/// Call Expression!
+///
+class CallExpr (Expr);
+var
+    Callee     : Expr;
+    Paren      : Token;
+    Arguments  : List;
+
+begin
+    constructor Init(Callee : Expr, Paren : Token, Arguments : List);
+    begin
+        this.Callee := Callee;
+        this.Paren := Paren;
+        this.Arguments := Arguments;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitCall(this);
+    end
+end
+
 test 'Test Literals' ;
 begin
    

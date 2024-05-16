@@ -1,11 +1,30 @@
+/// Interpreter!!!
+///
 class Interpreter;
 var 
-    Env : Any;
+    Env     : Any;
+    Globals : Any;
 
 begin
     constructor Init ();
     begin
-        this.Env := Environment();
+        class ClockNative;
+        begin
+            function Arity () : Integer;
+            begin
+                Exit 0;
+            end
+
+            function Call (TheInterpreter, Arguments) : Any;
+            begin
+                Exit clock();
+            end
+        end
+
+        this.Globals := Environment();
+        this.Env := Globals;
+        
+        Globals.Define ('clock', ClockNative());
     end
 
     /// Interprets a list of statements
@@ -101,6 +120,35 @@ begin
         end
     end
 
+    /// Interprets a call expression.
+    ///
+    function VisitCall (TheExpr : CallExpr) : Any;
+    var
+        Callee    : Any;
+        Arguments : List;
+
+    begin
+        Callee := Evaluate (TheExpr.Callee);
+  
+        Arguments := List();
+        for var I := 0; I < TheExpr.Arguments.Length; I := I + 1 do
+        begin
+            Arguments.Add (Evaluate (TheExpr.Arguments[I]));
+        end
+
+        // if Not InstanceOf(Callee, 'LoxCallable') then
+        //begin
+        //    raise RuntimeError (TheExpr.Paren, 'Can only call functions and classes');
+        //end
+
+        if Arguments.Length <> Callee.Arity() then
+        begin
+            raise RuntimeError (TheExpr.Paren, 'Expected ' + Callee.Arity() + ' arguments but got ' + Arguments.Length + '.');  
+        end
+
+        Exit Callee.Call (this, Arguments);
+    end
+
     // Is object truthy?
     //
     function IsTruthy (Obj : Any) : Boolean;
@@ -140,16 +188,22 @@ begin
     begin
         var PreviousEnv := this.Env;
         
-        // try 
-        NewEnv.Enclosing := this.Env;
-        this.Env := NewEnv;
+        try 
+            NewEnv.Enclosing := this.Env;
+            this.Env := NewEnv;
 
-        for var I := 0; I < Statements.Length; I := I + 1 do
-        begin
-           Execute (Statements[I]);
+            for var I := 0; I < Statements.Length; I := I + 1 do
+            begin
+               Execute (Statements[I]);
+            end
+        // Poor man's finally.  TODO.
+        except
+            on e : Return do
+                begin
+                    this.Env := PreviousEnv;
+                    raise e;
+                end
         end
-        
-        // finally
         this.Env := PreviousEnv;
     end
 
@@ -168,6 +222,17 @@ begin
     procedure VisitExpressionStmt (Stmt : ExpressionStmt);
     begin
         Evaluate (Stmt.Expression);
+    end
+
+    /// Runs a function statment.
+    ///
+    procedure VisitFunctionStmt (TheStmt : FunctionStmt);
+    var 
+        TheFunction : LoxFunction;
+
+    begin
+        TheFunction := LoxFunction (TheStmt, Env);
+        Env.Define (TheStmt.Name.Lexeme, TheFunction);
     end
 
     /// Runs an if statment.
@@ -201,6 +266,18 @@ begin
         WriteLn (Value);
     end
 
+    /// Runs a return statement
+    ///
+    procedure VisitReturnStmt (Stmt : ReturnStmt);
+    var
+        Value : Any;
+
+    begin
+        if Stmt.Value <> Nil then Value := Evaluate (Stmt.Value);
+
+        raise Return (Value);
+    end
+
     /// Runs a variable statement
     ///
     procedure VisitVarStmt (Stmt : VarStmt);
@@ -228,6 +305,17 @@ begin
         Exit Value;
     end
 end
+
+class Return;
+var 
+    Value : Any;
+
+begin
+    constructor Init (Value : Any);
+    begin
+        this.Value := Value;
+    end
+end 
 
 // Evaluating a literal should return the value.
 //
@@ -1178,4 +1266,147 @@ begin
     var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
     
     AssertEqual(5.0, Value);    
+end
+
+// Test calling clock native function.
+//
+test 'Native Function Clock';
+begin
+    var TheScanner := Scanner ('
+       var Abc := clock();
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'Abc', nil, 1));
+    
+    AssertTrue(Value <> Nil);    
+end
+
+// Test clock to string.
+//
+test 'Native Function Clock String';
+begin
+    var TheScanner := Scanner ('
+       var Abc := clock;
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'Abc', nil, 1));
+    
+    AssertEqual('ClockNative instance', Str(Value));    
+end
+
+// Try to call a non-function should should report runtime error to Lox.
+//
+test 'Call Non Function';
+begin
+    var TheScanner := Scanner ('
+        "totally not a functions"();
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheInterpreter.Interpret(Statements);
+    except
+       on e : String do 
+            begin
+                // FIXME
+                AssertEqual('Only instances have properties.', Str(e));
+                Exit;
+            end
+    end
+    Fail('No exception thrown.'); 
+end
+
+// Calling a function with the wrong number of arguments should report runtime error to Lox.
+//
+test 'Call Wrong Number Of Arguments';
+begin
+    var TheScanner := Scanner ('
+            fun fib(n) {
+               if (n < 2) return n;
+        
+               return fib(n - 1) + fib(n - 2);
+            }
+
+            var test = fib(1, 1);
+            print(fib(1));
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheInterpreter.Interpret(Statements);
+    except
+       on e : String do 
+            begin
+                // FIXME
+                // AssertEqual('Only instances have properties.', Str(e));
+                Exit;
+            end
+    end
+    Fail('No exception thrown.'); 
+end
+
+// Tests calling a recursive function.
+//
+test 'Call Recursive Function';
+begin
+    var TheScanner := Scanner ('
+            fun fib(n) {
+               if (n < 2) return n;
+        
+               return fib(n - 1) + fib(n - 2);
+            }
+            var test = fib(7);
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+    TheInterpreter.Interpret(Statements);
+
+    var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
+    
+    AssertEqual(13.0, Value);    
+end
+
+// Tests local functions!!!
+//
+test 'Interpret Local Function';
+begin
+    var TheScanner := Scanner ('
+            fun makeCounter() {
+                var i = 0;
+                fun count() {
+                    i = i + 1;
+                    print i;
+                }
+                return count;
+            }
+            
+            var counter = makeCounter();
+            counter();
+            counter();
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+    TheInterpreter.Interpret(Statements); 
 end

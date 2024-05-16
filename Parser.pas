@@ -45,6 +45,7 @@ begin
         if Match (TOKEN_IF) then Exit IfStatement();
         if Match (TOKEN_WHILE) then Exit WhileStatement();
         if Match (TOKEN_FOR) then Exit ForStatement();
+        if Match (TOKEN_RETURN) then Exit ReturnStatement();
         if Match (TOKEN_PRINT) then Exit PrintStatment();
         if Match (TOKEN_LEFT_BRACE) then Exit BlockStmt (Block());
 
@@ -163,6 +164,25 @@ begin
         Exit PrintStmt (Value);
     end
  
+    /// Parses a return statement.
+    ///
+    function ReturnStatement () : Stmt;
+    var
+        Keyword : Token;
+        Value   : Expr;
+
+    begin
+        Keyword := Previous();
+
+        if Not Check(TOKEN_SEMICOLON) then
+        begin
+            Value := Expression();
+        end
+
+        Consume(TOKEN_SEMICOLON, 'Expect ";" after return value.');
+        Exit ReturnStmt(Keyword, Value);
+    end
+
     /// Parses a var declaration.
     ///
     function VarDeclaration () : Stmt;
@@ -197,6 +217,38 @@ begin
         Exit ExpressionStmt (TheExpr);
     end
 
+    // Parse a function statement.
+    //
+    function ParseFunction (Kind : String) : Stmt;
+    var
+        Name   : Token;
+        Params : List of Token;
+        Body   : List of Stmt;
+
+    begin
+        Name := Consume (TOKEN_IDENTIFIER, 'Expect ' + Kind + ' name.');
+        Consume (TOKEN_LEFT_PAREN, 'Expect "(" after ' + Kind + ' name.');
+        Params := List();
+        if Not Check (TOKEN_RIGHT_PAREN) then
+        begin
+            Params.Add (Consume (TOKEN_IDENTIFIER, 'Expect parameter name.'));
+            while Match (TOKEN_COMMA) do
+            begin
+                if Params.Length >= 255 then
+                begin
+                    raise 'Cannot have more than 255 parameters.';
+                    //Error (Peek(), 'Cannot have more than 255 parameters.');
+                end
+                Params.Add (Consume (TOKEN_IDENTIFIER, 'Expect parameter name.'));              
+            end
+        end
+        Consume (TOKEN_RIGHT_PAREN, 'Expect ")" after parameters.');
+        Consume (TOKEN_LEFT_BRACE, 'Expect "{" before ' + Kind + ' body.');
+        Body := Block ();
+
+        Exit FunctionStmt (Name, Params, Body);
+    end
+    
     // Parses a block of statements.
     //
     function Block () : List;
@@ -294,7 +346,8 @@ begin
     function Declaration();
     begin
         //try 
-            if Match (TOKEN_VAR) then Exit VarDeclaration();
+            if Match (TOKEN_FUN) then Exit ParseFunction ('function');
+            if Match (TOKEN_VAR) then Exit VarDeclaration ();
             Exit Statement ();
         //except
         //    on e : String do 
@@ -401,7 +454,53 @@ begin
 
             Exit UnaryExpr(Operator, Right);
         end
-        Exit Primary();
+        Exit Call();
+    end
+
+    // Parses a call expression.
+    //
+    function Call () : Expr;
+    var
+       TheExpr : Expr;
+
+    begin
+        TheExpr := Primary();
+
+        
+        while True do
+        begin
+            if Match (TOKEN_LEFT_PAREN) then
+                TheExpr := FinishCall (TheExpr);
+            else 
+                Break;
+        end
+        Exit TheExpr;
+    end
+
+    // Finishes parsing a call.
+    //
+    function FinishCall (Callee : Any) : Expr;
+    var
+        Arguments : List of Expr;
+        Paren     : Token;
+
+    begin
+        Arguments := List();
+        if Not Check (TOKEN_RIGHT_PAREN) then
+        begin
+            Arguments.Add (Expression ());
+            while Match (TOKEN_COMMA) do
+            begin
+                if Arguments.Length >= 255 then 
+                    //Error (Peek(), 'Cannot have more than 255 arguments.');
+                    raise 'Cannot have more than 255 arguments.';
+
+                Arguments.Add (Expression ());
+            end
+        end
+        Paren := Consume(TOKEN_RIGHT_PAREN, 'Expect ")" after arguments.');
+
+        Exit CallExpr (Callee, Paren, Arguments);
     end
 
     // Parses a primary expression:  True, False, Nil, Number, String or Grouping.
@@ -1140,6 +1239,189 @@ begin
         on e : String do
             begin
                 AssertEqual('Expect ";" after variable declaration.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Tests parsing a function call
+//
+test 'Parse Function Call';
+begin
+    var TheScanner := Scanner ('test(1, 2);');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('ExpressionStmt', Result.ClassName);
+end  
+    
+// Parsing should accept multiple parenthesis.
+//
+test 'Parse Function Call Multiple Parenthesis';
+begin
+    var TheScanner := Scanner ('test(1, 2)();');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Statement();
+
+    AssertEqual('ExpressionStmt', Result.ClassName);
+end  
+
+// Should return a parse error if arguments are not followed by a close paren.
+//
+test 'Parse Call Expect Closing Parenthesis';
+begin
+    var TheScanner := Scanner ('test(1, 2;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ")" after arguments.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error if more than 255 arguments.
+//
+test 'Parse Call More Than 255';
+begin
+    var text := 'test(';
+    for var I := 1; I < 300; I := I + 1 do
+    begin
+       text := text + I + ', ';
+    end
+    text := text + '300);';
+
+    var TheScanner := Scanner (text);
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Cannot have more than 255 arguments.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Tests parsing a function.
+//
+test 'Parse Function';
+begin
+    var TheScanner := Scanner ('fun test(a, b) {}');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    var Result := TheParser.Declaration();
+
+    AssertEqual('FunctionStmt', Result.ClassName);
+end  
+
+// Should return a parse error if no opening parenthesis
+//
+test 'Parse Function No Open Parenthesis';
+begin
+    var TheScanner := Scanner ('fun test;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect "(" after function name.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error if more than 255 parameters
+//
+test 'Parse Function More Than 255 Parameters';
+begin
+    var text := 'fun test(';
+    for var I := 1; I < 300; I := I + 1 do
+    begin
+       text := text + 'param' + I + ', ';
+    end
+    text := text + 'param300) {}';
+
+    var TheScanner := Scanner (text);
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Cannot have more than 255 parameters.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error if parameter is not an identifier.
+//
+test 'Parse Function Parameter Not Identifier';
+begin
+    var TheScanner := Scanner ('fun test(1, 2, 3) {}');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect parameter name.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error if no closing parenthesis.
+//
+test 'Parse Function No Close Parenthesis';
+begin
+    var TheScanner := Scanner ('fun test(a, b;');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect ")" after parameters.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error if no opening brace.
+//
+test 'Parse Function No Open Brace';
+begin
+    var TheScanner := Scanner ('fun test(a, b)');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect "{" before function body.', e);
                 Exit;
             end
     end

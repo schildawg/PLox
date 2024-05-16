@@ -7,20 +7,20 @@ uses Scanner;
 uses Interpreter;
 uses Stmt;
 uses Environment;
+uses LoxFunction;
 
 /// Main
 ///
 begin
     var TheScanner := Scanner(
         '
-            var a = 0;
-            var temp;
-
-            for (var b = 1; a < 1000; b = temp + b) {
-                print a;
-                temp = a;
-                a = b;
+            fun fib(n) {
+               if (n < 2) return n;
+        
+               return fib(n - 1) + fib(n - 2);
             }
+            var test = fib(7);
+            print test;
         ');
 
     var Tokens := TheScanner.ScanTokens();

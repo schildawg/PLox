@@ -117,3 +117,45 @@ begin
        Exit Visitor.VisitWhileStmt(this);
     end   
 end
+
+/// Function Statement!
+///
+class FunctionStmt (Stmt);
+var
+    Name   : Token;
+    Params : List; 
+    Body   : List;
+
+begin
+    constructor Init (Name : Token, Params : List, Body : List);
+    begin
+        this.Name := Name;
+        this.Params := Params;
+        this.Body := Body;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitFunctionStmt(this);
+    end   
+end
+
+/// Return Statement!
+///
+class ReturnStmt (Stmt);
+var
+    Keyword : Token;
+    Value   : Expr; 
+
+begin
+    constructor Init (Keyword : Token, Value : Expr);
+    begin
+        this.Keyword := Keyword;
+        this.Value := Value;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitReturnStmt(this);
+    end   
+end
