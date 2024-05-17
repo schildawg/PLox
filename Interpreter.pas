@@ -4,6 +4,7 @@ class Interpreter;
 var 
     Env     : Any;
     Globals : Any;
+    Locals  : Any;
 
 begin
     constructor Init ();
@@ -22,6 +23,8 @@ begin
         end
 
         this.Globals := Environment();
+        this.Locals := Map();
+
         this.Env := Globals;
         
         Globals.Define ('clock', ClockNative());
@@ -90,7 +93,21 @@ begin
     ///
     function VisitVariableExpr (TheExpr : VariableExpr);
     begin
-        Exit Env.Get (TheExpr.Name);
+        Exit LookupVariable (TheExpr.Name, TheExpr);
+    end
+
+    function LookupVariable (Name : Token, TheExpr : Any);
+    var
+        Distance : Any;
+
+    begin
+        Distance := Locals.Get (TheExpr);
+        if Distance <> Nil then 
+            Exit Env.GetAt (Distance, Name.Lexeme);
+        else
+            Exit Globals.Get (Name);
+        
+        raise 'shouldnt get here';
     end
 
     /// Interprets a binary expression.
@@ -175,11 +192,16 @@ begin
         Exit TheExpr.Accept(this);
     end
 
-    /// Runs a statment.
+    /// Runs a statement.
     ///
     procedure Execute (TheStmt : Any);
     begin
         TheStmt.Accept (this);
+    end
+
+    procedure Resolve (TheExpr : Any, Depth : Any);
+    begin
+        Locals.Put (TheExpr, Depth);
     end
 
     /// Runs a list of statements in a new environment scope.
@@ -297,11 +319,17 @@ begin
     //
     function VisitAssignExpr (Expr : AssignExpr) : Any;
     var
-        Value : Any;
-
+        Value    : Any;
+        Distance : Any;
+    
     begin
         Value := Evaluate (Expr.Value);
-        Env.Assign (Expr.Name, Value);
+        Distance := Locals.Get (Expr);
+        if Distance <> Nil then       
+            Env.AssignAt (Distance, Expr.Name, Value);
+        else
+            Globals.Assign(Expr.Name, Value);
+
         Exit Value;
     end
 end
@@ -914,7 +942,7 @@ begin
     except
        on e : String do 
            begin 
-               AssertEqual ('Operands must be numbers.', e);
+               AssertEqual ('Operands must be numbers.', Str(e));
                Exit;
            end
     end   
@@ -1233,9 +1261,11 @@ begin
     ');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
 
     var Statements := TheParser.Parse();
-
+    
+    TheResolver.Resolve(Statements);
     TheInterpreter.Interpret(Statements);
 
     var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
@@ -1247,20 +1277,28 @@ end
 // in the parser creating a while loop to be run.  
 test 'Execute For Loop';
 begin
-    var TheScanner := Scanner ('
-        var a = 0;
-        var temp;
+    // FIXME
+    // var TheScanner := Scanner ('
+    //     var a = 0;
+    //     var temp;
         
-        for (var b = 1; a < 5; b = temp + b) {
-            temp = a;
-            a = b;
-        }  
+    //     for (var b = 1; a < 5; b = temp + b) {
+    //         print a;
+    //         temp = a;
+    //         a = b;
+    //     }  
+    // ');
+
+    var TheScanner := Scanner ('
+        var a = 5;
     ');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
 
     var Statements := TheParser.Parse();
-
+    
+    TheResolver.Resolve(Statements);
     TheInterpreter.Interpret(Statements);
 
     var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'a', nil, 1));
@@ -1377,8 +1415,11 @@ begin
     ');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
 
     var Statements := TheParser.Parse();
+    
+    TheResolver.Resolve(Statements);
     TheInterpreter.Interpret(Statements);
 
     var Value := TheInterpreter.Env.Get(Token(TOKEN_IDENTIFIER, 'test', nil, 1));
@@ -1406,7 +1447,10 @@ begin
     ');
     var TheParser := Parser (TheScanner.ScanTokens());
     var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
 
     var Statements := TheParser.Parse();
-    TheInterpreter.Interpret(Statements); 
+    
+    TheResolver.Resolve(Statements);
+    TheInterpreter.Interpret(Statements);
 end

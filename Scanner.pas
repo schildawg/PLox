@@ -1,4 +1,3 @@
-
 var  Keywords := [
     'and':TOKEN_AND, 'class':TOKEN_CLASS, 'else':TOKEN_ELSE, 'false':TOKEN_FALSE, 'for':TOKEN_FOR, 'fun':TOKEN_FUN,
     'if':TOKEN_IF, 'nil':TOKEN_NIL, 'or':TOKEN_OR, 'print':TOKEN_PRINT, 'return':TOKEN_RETURN, 'super':TOKEN_SUPER, 

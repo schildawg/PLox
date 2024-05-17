@@ -8,26 +8,41 @@ uses Interpreter;
 uses Stmt;
 uses Environment;
 uses LoxFunction;
+uses Resolver;
 
-/// Main
-///
+procedure Main;
+var 
+   TheScanner     : Scanner;
+   TheParser      : Parser;
+   TheResolver    : Resolver;
+   TheInterpreter : Interpreter;
+   
+   Tokens : List;
+   Stmts  : List;
+
 begin
-    var TheScanner := Scanner(
+    TheScanner := Scanner(
         '
-            fun fib(n) {
-               if (n < 2) return n;
+            fun fib(nn) {
+               if (nn < 2) return nn;
         
-               return fib(n - 1) + fib(n - 2);
+               return fib(nn - 1) + fib(nn - 2);
             }
+
             var test = fib(7);
             print test;
         ');
 
-    var Tokens := TheScanner.ScanTokens();
-    var TheParser := Parser(Tokens);
-    var TheInterpreter := Interpreter();
+    Tokens := TheScanner.ScanTokens();
+    TheParser := Parser(Tokens);
+    TheInterpreter := Interpreter();
 
-    var Stmts := TheParser.Parse();
+    Stmts := TheParser.Parse();
     
+    TheResolver := Resolver(TheInterpreter);
+    TheResolver.Resolve(Stmts);
+
     TheInterpreter.Interpret (Stmts);
 end
+
+Main();

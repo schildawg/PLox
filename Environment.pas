@@ -23,7 +23,7 @@ begin
     ///
     procedure Assign (Name : Token, Value : Any);
     begin
-        if Values.Contains(Name.Lexeme) then
+        if Values.Contains(Str(Name.Lexeme)) then
         begin
             Values.Put (Str(Name.Lexeme), Value);
             Exit;
@@ -33,7 +33,6 @@ begin
             Enclosing.Assign(Name, Value);
             Exit;
         end
-
         raise 'Undefined variable "' + Name.Lexeme + '".';
     end
 
@@ -52,6 +51,30 @@ begin
         if Enclosing <> Nil then Exit Enclosing.Get(Name);
 
         raise 'Undefined variable "' + Name.Lexeme + '".'; 
+    end
+
+    function GetAt (Distance : Integer, Name : String) : Any;
+    begin
+
+        Exit Ancestor (Distance).Values.Get(Name);
+    end
+
+    procedure AssignAt (Distance : Any, Name : Any, Value : Any);
+    begin
+        Ancestor (Distance).Values.Put(Name, Value);
+    end
+
+    function Ancestor (Distance : Integer) : Any;
+    var
+        Env: Any;
+
+    begin
+        Env := this;
+        for var I := 0; I < Distance; I := I + 1 do
+        begin
+           Env := Env.Enclosing;
+        end
+        Exit Env;
     end
 end
 
