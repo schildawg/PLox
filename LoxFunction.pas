@@ -16,9 +16,10 @@ begin
 
     /// Number of parameters in function signature.
     ///
-    function Arity () : Any;
+    function Arity () : Integer;
     begin
-        //if Declaration.Params = Nil then Exit 0;
+        if Declaration.Params = Nil then Exit 0;
+        
         Exit Declaration.Params.Length;
     end
 

@@ -1,6 +1,10 @@
 /// Environment!
 ///
 class Environment;
+var
+    Values    : Map;
+    Enclosing : Environment;
+
 begin
     constructor Init ();
     begin
@@ -53,26 +57,33 @@ begin
         raise 'Undefined variable "' + Name.Lexeme + '".'; 
     end
 
+    /// Gets a variable from the local scope, or looks in the enclosing environment.  The parameter "distance" is how many
+    /// hops up ancestor environments to reach the correct scope.
+    ///
     function GetAt (Distance : Integer, Name : String) : Any;
     begin
-
         Exit Ancestor (Distance).Values.Get(Name);
     end
 
-    procedure AssignAt (Distance : Any, Name : Any, Value : Any);
+    /// Assigns a value to an existing variable.  The parameter "distance" is how many hops up ancestor environments to reach
+    ///  the correct scope.
+    ///
+    procedure AssignAt (Distance : Integer, Name : Any, Value : Any);
     begin
         Ancestor (Distance).Values.Put(Name, Value);
     end
 
+    // Hops up the ancestor chain by a "distance"
+    //
     function Ancestor (Distance : Integer) : Any;
     var
-        Env: Any;
+        Env : Environment;
 
     begin
-        Env := this;
+        Env := this as Environment;
         for var I := 0; I < Distance; I := I + 1 do
         begin
-           Env := Env.Enclosing;
+           Env := Env.Enclosing as Environment;
         end
         Exit Env;
     end
@@ -96,11 +107,11 @@ end
 //
 test 'Test Environment Two Deep';
 begin
-    var Globals := Environment();
+    var Globals : Environment := Environment();
     Globals.Define ('test', 1.0);
 
     var Env := Environment();
-    Env.Enclosing := Globals;
+    Env.Enclosing := Globals as Environment;
     Env.Define ('test', 2.0);
 
     var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
@@ -118,10 +129,10 @@ begin
     Globals.Define ('test', 1.0);
 
     var Env := Environment();
-    Env.Enclosing := Globals;
+    Env.Enclosing := Globals as Environment;
 
     var InnerEnv := Environment();
-    InnerEnv.Enclosing := Env;
+    InnerEnv.Enclosing := Env as Environment;
 
     var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
 
@@ -136,7 +147,7 @@ begin
     Globals.Define ('test', 1.0);
 
     var Env := Environment();
-    Env.Enclosing := Globals;
+    Env.Enclosing := Globals as Environment;
 
     var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
 
@@ -180,4 +191,37 @@ begin
             end
     end
     Fail ('No exception thrown.');
+end
+
+test 'Test Get At';
+begin
+    var Globals := Environment();
+    Globals.Define ('test', 1.0);
+
+    var Env := Environment();
+    Env.Enclosing := Globals as Environment;
+    Env.Define ('test', 2.0);
+    var InnerEnv := Environment();
+    InnerEnv.Enclosing := Env as Environment;
+
+
+    AssertEqual(1.0, InnerEnv.GetAt (2, 'test'));
+    AssertEqual(2.0, InnerEnv.GetAt (1, 'test'));
+end
+
+test 'Test Assign At';
+begin
+    var Globals := Environment();
+    Globals.Define ('test', 1.0);
+
+    var Env := Environment();
+    Env.Enclosing := Globals as Environment;
+
+    var InnerEnv := Environment();
+    InnerEnv.Enclosing := Env as Environment;
+
+    var TheToken := Token(TOKEN_IDENTIFIER, 'test', Nil, 0);
+    InnerEnv.AssignAt (2, 'test', 5.0);
+
+    AssertEqual(5.0, InnerEnv.Get (TheToken));
 end

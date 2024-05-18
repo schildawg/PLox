@@ -1,3 +1,5 @@
+/// Function Type!!!
+///
 type FunctionType = (FUN_NONE, FUN_FUNCTION);
 
 /// Resolver.  Semantic analysis pass to resolve and bind variables for use in the Interpreter.
@@ -6,7 +8,7 @@ class Resolver;
 var
    TheInterpreter  : Interpreter;
    Scopes          : Stack;
-   CurrentFunction : Any;
+   CurrentFunction : FunctionType;
    
 begin
     /// Creates a Resolver.
@@ -51,6 +53,10 @@ begin
     end
 
     /// Runs a return statement
+    ///
+    /// # Errors
+    ///
+    /// Raises an error if at top level.
     ///
     procedure VisitReturnStmt (Stmt : ReturnStmt);
     begin
@@ -150,6 +156,10 @@ begin
 
     // Variable expressions need to have their variables resolved.
     //
+    // # Errors
+    // 
+    // Raises an error if attmepting to initialize variable with itself.
+    //
     function VisitVariableExpr (TheExpr : VariableExpr);
     begin
         if Not Scopes.IsEmpty () and Scopes.Peek().Get(TheExpr.Name.Lexeme) = False then
@@ -181,11 +191,11 @@ begin
     //
     procedure ResolveFunction (TheFunction : FunctionStmt, TypeOfFunction : FunctionType);
     var
-       EnclosingFunction : Any;
+       EnclosingFunction : FunctionType;
 
     begin
         EnclosingFunction := CurrentFunction;
-        CurrentFunction := TypeOfFunction;
+        CurrentFunction := TypeOfFunction as FunctionType;
 
         BeginScope ();
         for var I := 0; I < TheFunction.Params.Length; I := I + 1 do
@@ -216,14 +226,18 @@ begin
 
     // Declares a variable.
     //
+    // # Exception
+    //
+    // Raises an error if variable already exists in scope.
+    //
     procedure Declare (Name : Token);
     var
-       Scope : Any;
+       Scope : Map;
 
     begin
         if Scopes.IsEmpty() then Exit;
 
-        Scope := Scopes.Peek();
+        Scope := Scopes.Peek() as Map;
         if Scope.Contains (Name.Lexeme) then 
         begin
            raise 'Already a variable with this name in this scope.';
@@ -236,16 +250,16 @@ begin
     //
     procedure Define (Name : Token);
     var
-       Scope : Any;
+       Scope : Map;
 
     begin
         if Scopes.IsEmpty() then Exit;
         
-        Scope := Scopes.Peek();
+        Scope := Scopes.Peek() as Map;
         Scope.Put (Name.Lexeme, True);
     end
     
-    procedure ResolveLocal (TheExpr : Any, Name : Any);
+    procedure ResolveLocal (TheExpr : Expr, Name : Token);
     begin
         for var I : Integer := Scopes.Length - 1; I >= 0; I := I - 1 do
         begin

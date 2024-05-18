@@ -101,7 +101,7 @@ begin
     procedure ScanIdentifier();
     var 
        Text        : String;
-       TypeOfToken : Any;  // TODO: TokenType
+       TypeOfToken : TokenType;
 
     begin
         while IsAlphaNumeric(Peek()) do Advance();
@@ -111,7 +111,7 @@ begin
 
         if Keywords.Contains(Text) then
         begin
-            TypeOfToken := Keywords.Get(Text); 
+            TypeOfToken := Keywords.Get(Text) as TokenType; 
         end
 
         AddToken(TypeOfToken);        

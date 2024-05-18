@@ -54,6 +54,11 @@ begin
 
     /// Parses an if statement
     ///
+    /// # Errors
+    ///
+    /// Raises an error if no opening parenthesis after if.
+    /// Raises an error if no closing parenthesis after condition.
+    ///
     function IfStatement () : Stmt;
     var
         Condition  : Expr;
@@ -75,6 +80,12 @@ begin
     end
 
     /// Parses a for statement
+    ///
+    /// # Errors
+    ///
+    /// Raise an error if no opening parenthesis after for.
+    /// Raise an error if no semicolon after loop condition.
+    /// Raise an error if no closing parenthesis after for clauses.
     ///
     function ForStatement () : Stmt;
     var
@@ -136,6 +147,11 @@ begin
 
     /// Parses a while statement
     ///
+    /// # Errors
+    ///
+    /// Raises an error if no opening parenthesis after while.
+    /// Raises an error if no closing parenthesis after condition.
+    ///
     function WhileStatement () : Stmt;
     var
         Condition : Expr;
@@ -153,6 +169,10 @@ begin
 
     /// Parses a print statement
     /// 
+    /// # Errors
+    ///
+    /// Raises an error if no semicolon after value.
+    ///
     function PrintStatment () : Stmt;
     var
         Value : Expr;
@@ -165,6 +185,11 @@ begin
     end
  
     /// Parses a return statement.
+    ///
+    ///
+    /// # Errors
+    ///
+    /// Raises an error if no semicolon after value.
     ///
     function ReturnStatement () : Stmt;
     var
@@ -184,6 +209,11 @@ begin
     end
 
     /// Parses a var declaration.
+    ///
+    /// # Errors
+    /// 
+    /// Raises an error if no variable name.
+    /// Raises an error if no semicolon after variable declaration.
     ///
     function VarDeclaration () : Stmt;
     var 
@@ -206,6 +236,10 @@ begin
 
     /// Parses an expression statement
     ///
+    /// # Errors
+    /// 
+    /// Raises an error if no semicolon after expression.
+    ///
     function ExpressionStatement () : Stmt;
     var
        TheExpr : Expr;
@@ -219,6 +253,15 @@ begin
 
     // Parse a function statement.
     //
+    // # Errors
+    //
+    // Raises an error if no function name.
+    // Raises an error if no parenthesis after name.
+    // Raises an error if missing parameter name.
+    // Raises an error if more than 255 parameters.
+    // Raises an error if no closing parenthesis after parameters.
+    // Raises an error if no opening brace before body.
+    // 
     function ParseFunction (Kind : String) : Stmt;
     var
         Name   : Token;
@@ -251,6 +294,8 @@ begin
     
     // Parses a block of statements.
     //
+    // Raises an error if no semicolon after block.
+    // 
     function Block () : List;
     var
        Statements : List of Statement;
@@ -268,6 +313,10 @@ begin
     end
 
     // Parses an assignment.
+    //
+    // # Errors
+    //
+    // Raises an error if invalid assignment target.
     //
     function Assignment () : Expr;
     var
@@ -479,7 +528,12 @@ begin
 
     // Finishes parsing a call.
     //
-    function FinishCall (Callee : Any) : Expr;
+    // # Errors
+    //
+    // Raises an error if more than 255 arguments.
+    // Raises an error if no closing parenthesis after arguments.
+    //
+    function FinishCall (Callee : Expr) : Expr;
     var
         Arguments : List of Expr;
         Paren     : Token;
@@ -553,7 +607,7 @@ begin
 
     // Returns an error.
     //
-    function Error(TheToken: Token, Message : Any) : Any;
+    function Error(TheToken: Token, Message : String) : Any;
     begin
         Exit Message;
         
@@ -564,6 +618,10 @@ begin
     end
 
     // If current token matches a type then advance, otherwise throw an error.
+    //
+    // # Errors
+    //
+    // Raises an error if token not matched.
     //
     function Consume (TypeOfToken : TokenType, Message : String) : Token;
     begin
@@ -1300,7 +1358,7 @@ begin
     text := text + '300);';
 
     var TheScanner := Scanner (text);
-    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheParser := Parser (TheScanner.ScanTokens() as List);
 
     try
         TheParser.Statement();

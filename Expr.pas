@@ -6,9 +6,9 @@ end
 ///
 class BinaryExpr (Expr);
 var
-   Left  : Any;
-   Op    : Any;
-   Right : Any;
+   Left  : Expr;
+   Op    : Token;
+   Right : Expr;
    
 begin
     constructor Init(Left, Op, Right);
@@ -28,9 +28,9 @@ end
 ///
 class LogicalExpr (Expr);
 var
-   Left  : Any;
-   Op    : Any;
-   Right : Any;
+   Left  : Expr;
+   Op    : Token;
+   Right : Expr;
    
 begin
     constructor Init(Left, Op, Right);

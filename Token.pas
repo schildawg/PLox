@@ -2,13 +2,13 @@
 ///
 class Token;
 var 
-   TypeOfToken : Any;
+   TypeOfToken : TokenType;
    Lexeme      : String;
    Literal     : Any;
    LineNumber  : Integer;
 
 begin
-    constructor Init(TypeOfToken, Lexeme, Literal, LineNumber);
+    constructor Init(TypeOfToken : TokenType, Lexeme : String, Literal : Any, LineNumber : Integer);
     begin
         this.TypeOfToken := TypeOfToken;
         this.Lexeme := Lexeme;
