@@ -1,6 +1,9 @@
 /// Function Type!!!
 ///
-type FunctionType = (FUN_NONE, FUN_FUNCTION);
+type FunctionType = (FUN_NONE, FUN_FUNCTION, FUN_METHOD, FUN_INITIALIZER);
+
+/// Class Type!!!
+type ClassType = (CLASS_NONE, CLASS_CLASS, CLASS_SUBCLASS);
 
 /// Resolver.  Semantic analysis pass to resolve and bind variables for use in the Interpreter.
 ///
@@ -9,6 +12,7 @@ var
    TheInterpreter  : Interpreter;
    Scopes          : Stack;
    CurrentFunction : FunctionType;
+   CurrentClass    : ClassType;
    
 begin
     /// Creates a Resolver.
@@ -18,6 +22,7 @@ begin
         this.TheInterpreter := TheInterpreter;
         this.Scopes := Stack();
         this.CurrentFunction := FUN_NONE;
+        this.CurrentClass := CLASS_NONE;
     end
 
     // A block statement introduces a new scope for the statements it contains.
@@ -27,6 +32,60 @@ begin
         BeginScope();
         Resolve(Stmt.Statements);
         EndScope();
+    end
+
+    // Defines and declares the name of the class.
+    //
+    // # Errors
+    //
+    // Raises an error if attempting to inherit from itself.
+    //
+    procedure VisitClassStmt (Stmt : ClassStmt);
+    var
+        EnclosingClass : ClassType;
+
+    begin
+        EnclosingClass := CurrentClass;
+        CurrentClass := CLASS_CLASS;
+
+        Declare (Stmt.Name);
+        Define (Stmt.Name);
+
+        if Stmt.Superclass <> Nil and Stmt.Name.Lexeme = Stmt.Superclass.Name.Lexeme then
+        begin
+            raise 'A class cannot inherit from itself.';
+        end
+
+        if Stmt.Superclass <> Nil then
+        begin
+            CurrentClass := CLASS_SUBCLASS;
+            Resolve (Stmt.Superclass);
+        end
+
+        if Stmt.Superclass <> Nil then
+        begin
+           BeginScope();
+           Scopes.Peek().Put('super', True);
+        end
+
+        BeginScope();
+        Scopes.Peek().Put ('this', true);
+
+        for var I := 0; I < Stmt.Methods.Length; I := I + 1 do
+        begin
+            var Declaration := FUN_FUNCTION;
+            if Stmt.Methods[I].Name.Lexeme = 'init' then
+            begin
+                Declaration := FUN_INITIALIZER;
+            end
+            ResolveFunction (Stmt.Methods[I], Declaration);
+        end
+
+        EndScope();
+        
+        if Stmt.Superclass <> Nil then EndScope();
+
+        CurrentClass := EnclosingClass;
     end
 
     // Traverses tree.
@@ -65,7 +124,15 @@ begin
             raise 'Cannot return from top-level code.';
         end
 
-        if (Stmt.Value <> Nil) then Resolve (Stmt.Value);
+        if (Stmt.Value <> Nil) then 
+        begin
+            if CurrentFunction = FUN_INITIALIZER then
+            begin
+                raise 'Cannot return a value from an initializer.';
+            end
+
+            Resolve (Stmt.Value);
+        end
     end
 
     // Traverses tree.
@@ -139,6 +206,49 @@ begin
         begin
             Resolve(TheExpr.Arguments[I]);
         end
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitGetExpr (TheExpr : GetExpr);
+    begin
+        Resolve(TheExpr.Object);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitSetExpr (TheExpr : SetExpr);
+    begin
+        Resolve(TheExpr.Value);
+        Resolve(TheExpr.Object);
+    end
+
+    // Traverses tree.
+    //
+    procedure VisitSuperExpr (TheExpr : SuperExpr);
+    begin
+        if CurrentClass = CLASS_NONE then
+           raise 'Cannot use "super" outside of a class.';
+        else if CurrentClass <> CLASS_SUBCLASS then
+           raise 'Cannot use "super" in a class with no subclass.';
+
+        ResolveLocal(TheExpr, TheExpr.Keyword);
+    end
+
+    // Resolves "this".
+    //
+    // # Errors
+    //
+    // Raises an error if invoking "this" outside of a class.
+    //
+    procedure VisitThisExpr (TheExpr : ThisExpr);
+    begin
+        if CurrentClass = CLASS_NONE then
+        begin
+            raise 'Cannot use "this" outside of a class.';
+        end
+
+        ResolveLocal (TheExpr, TheExpr.Keyword);
     end
 
     // Traverses tree.
@@ -571,6 +681,30 @@ begin
        on e : String do
             begin
                AssertEqual('Cannot return from top-level code.', e);
+               Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+ 
+// The resolver should report an error to Lox if a class tries to inherit from itself.
+//
+test 'Inherit From Self';
+begin
+    var TheScanner := Scanner ('class Pie < Pie {}');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+    var TheResolver := Resolver(TheInterpreter);
+
+    var Statements := TheParser.Parse();
+
+    try    
+        TheResolver.Resolve(Statements);
+    except
+       on e : String do
+            begin
+               AssertEqual('A class cannot inherit from itself.', e);
                Exit;
             end
     end

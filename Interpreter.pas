@@ -96,11 +96,13 @@ begin
         Exit LookupVariable (TheExpr.Name, TheExpr);
     end
 
+    /// Finds a variable by distance or in globals.
+    //
     function LookupVariable (Name : Token, TheExpr : Expr);
     var
         Distance : Integer;
 
-    begin
+    begin    
         Distance := Locals.Get (TheExpr) As Integer;
         if Distance <> Nil then 
             Exit Env.GetAt (Distance, Name.Lexeme);
@@ -168,6 +170,78 @@ begin
         Exit Callee.Call (this, Arguments);
     end
 
+    // Gets a property.
+    //
+    // # Errors
+    // 
+    // Raises an error if attempting to get a property on a non-instance.
+    //    
+    function VisitGetExpr (TheExpr : GetExpr) : Any;
+    var
+       Object : Any;
+
+    begin
+        Object := Evaluate (TheExpr.Object);
+        
+        if Object.ClassName <> 'LoxInstance' then
+        begin
+            raise 'Only instances have properties!';
+        end
+
+        Exit Object.Get (TheExpr.Name);
+    end
+
+    // Sets a property.
+    //
+    // # Errors
+    // 
+    // Raises an error if attempting to set a property on a non-instance.
+    //
+    function VisitSetExpr (TheExpr : SetExpr) : Any;
+    var
+       Object : Any;
+       Value  : Any;
+
+    begin
+        Object := Evaluate (TheExpr.Object);
+
+        if Object.ClassName <> 'LoxInstance' then
+        begin
+            raise 'Only instances have fields';
+        end
+        
+        Value := Evaluate (TheExpr.Value);
+        Object.Set (TheExpr.Name, Value);
+
+        Exit Value;
+    end
+
+    // Evaluates "super".
+    //
+    function VisitSuperExpr (TheExpr : SuperExpr) : Any;
+    var
+        Distance   : Integer;
+        Superclass : LoxClass;
+        Object     : LoxInstance;
+        Method     : LoxFunction;
+
+    begin
+        Distance := Locals.Get(TheExpr) as Integer;
+
+        Superclass := Env.GetAt (Distance, 'super') as LoxClass;
+        Object := Env.GetAt (Distance - 1, 'this') as LoxInstance;
+        Method := Superclass.FindMethod (TheExpr.Method.Lexeme);
+
+        Exit Method.Bind(Object);
+    end
+
+    // Evaluates "this".
+    //
+    function VisitThisExpr (TheExpr : ThisExpr) : Any;
+    begin
+        Exit LookupVariable (TheExpr.Keyword, TheExpr);
+    end
+
     // Is object truthy?
     //
     function IsTruthy (Obj : Any) : Boolean;
@@ -216,9 +290,7 @@ begin
         PreviousEnv := this.Env as Environment;
         
         try 
-            NewEnv.Enclosing := this.Env;
             this.Env := NewEnv;
-
             for var I := 0; I < Statements.Length; I := I + 1 do
             begin
                Execute (Statements[I]);
@@ -244,25 +316,76 @@ begin
         ExecuteBlock (TheStmt.Statements, NewEnv);
     end
 
-    /// Runs an expression statment.
+    /// Runs a class statement.
+    ///
+    /// # Errors
+    ///
+    /// Raises an error if superclass is not a class.
+    ///
+    procedure VisitClassStmt (TheStmt : ClassStmt);
+    var
+       Klass      : LoxClass;
+       Superclass : Any;
+       Methods    : Map;
+
+    begin
+        Superclass := Nil;
+        if TheStmt.Superclass <> Nil then
+        begin  
+            Superclass := Evaluate (TheStmt.Superclass);
+            if Superclass.ClassName <> 'LoxClass' then
+            begin
+                raise 'Superclass must be a class.';
+            end
+        end
+
+        Env.Define (TheStmt.Name.Lexeme, Nil);
+
+        if TheStmt.Superclass <> Nil then
+        begin
+            var Previous : Environment := Env;
+            Env := Environment();
+            Env.Enclosing := Previous;
+            Env.Define ('super', Superclass);
+        end
+
+        Methods := Map();
+        for var I := 0; I < TheStmt.Methods.Length; I := I + 1 do
+        begin
+            var Method := TheStmt.Methods[I];
+
+            TheFunction := LoxFunction (Method, Env, Method.Name.Lexeme = 'init');
+            Methods.Put (Method.Name.Lexeme, TheFunction);
+        end
+        Klass := LoxClass (TheStmt.Name, Superclass, Methods) as LoxClass;
+
+        if Superclass <> Nil then
+        begin
+            Env := Env.Enclosing as Environment;
+        end
+
+        Env.Assign (TheStmt.Name, Klass);
+    end
+
+    /// Runs an expression statement.
     ///
     procedure VisitExpressionStmt (Stmt : ExpressionStmt);
     begin
         Evaluate (Stmt.Expression);
     end
 
-    /// Runs a function statment.
+    /// Runs a function statement.
     ///
     procedure VisitFunctionStmt (TheStmt : FunctionStmt);
     var 
         TheFunction : LoxFunction;
 
     begin
-        TheFunction := LoxFunction (TheStmt, Env);
+        TheFunction := LoxFunction (TheStmt, Env, False);
         Env.Define (TheStmt.Name.Lexeme, TheFunction);
     end
 
-    /// Runs an if statment.
+    /// Runs an if statement.
     ///
     procedure VisitIfStmt (Stmt : IfStmt);
     begin
@@ -272,7 +395,7 @@ begin
             Execute (Stmt.ElseBranch);
     end
 
-    /// Runs a while statment.
+    /// Runs a while statement.
     ///
     procedure VisitWhileStmt (Stmt : WhileStmt);
     begin
@@ -339,6 +462,8 @@ begin
     end
 end
 
+/// Return value.
+///
 class Return;
 var 
     Value : Any;
@@ -1458,4 +1583,101 @@ begin
     TheResolver.Resolve(Statements);
     TheInterpreter.Interpret(Statements);
 
+end
+
+// Tests invalid getter
+//
+test 'Call Invalid Getter';
+begin
+    var TheScanner := Scanner ('
+            var test = false;
+
+            print test.len;
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheInterpreter.Interpret(Statements);
+    except
+       on e : String do 
+            begin
+                AssertEqual('Only instances have properties.', Str(e));
+                Exit;
+            end
+    end
+    Fail('No exception thrown.'); 
+end
+
+// Tests undefined getter
+//
+test 'Call Undefined Getter';
+begin
+    var TheScanner := Scanner ('
+            class Bagel {}
+            var bagel = Bagel();
+
+            print bagel.flavor;
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheInterpreter.Interpret(Statements);
+    except
+       on e : String do 
+            begin
+                AssertEqual('Undefined property "flavor".', Str(e));
+                Exit;
+            end
+    end
+    Fail('No exception thrown.'); 
+end
+
+// Tests setters and getters!!
+//
+test 'Call Setters And Getters';
+begin
+    var TheScanner := Scanner ('
+            class Bagel {}
+            var bagel = Bagel();
+            bagel.flavor = \"Yummy\";
+
+            print bagel.flavor;
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+    TheInterpreter.Interpret(Statements);
+end
+
+// Tests trying to inherit from a non-class.
+//
+test 'Inherit Not A Class';
+begin
+    var TheScanner := Scanner ('
+            var NotAClass = \"Totally not a class!!!\";
+
+            class Subclass < NotAClass {}
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+    var TheInterpreter := Interpreter();
+
+    var Statements := TheParser.Parse();
+
+    try
+        TheInterpreter.Interpret(Statements);
+    except
+       on e : String do 
+            begin
+                AssertEqual('Only instances have properties.', Str(e));
+                Exit;
+            end
+    end
+    Fail('No exception thrown.'); 
 end

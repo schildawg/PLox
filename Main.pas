@@ -1,14 +1,20 @@
 uses AstPrinter;
-uses Expr;
-uses Parser;
+
 uses Token;
 uses TokenType;
-uses Scanner;
-uses Interpreter;
+
+uses Expr;
 uses Stmt;
+
 uses Environment;
 uses LoxFunction;
+uses LoxClass;
+uses LoxInstance;
+
+uses Scanner;
+uses Parser;
 uses Resolver;
+uses Interpreter;
 
 procedure Main;
 var 
@@ -23,14 +29,20 @@ var
 begin
     TheScanner := Scanner(
         '
-            fun fib(nn) {
-               if (nn < 2) return nn;
-        
-               return fib(nn - 1) + fib(nn - 2);
+            class Doughnut {
+                cook() {
+                    print "Fry until golden!";
+                }
             }
 
-            var test = fib(7);
-            print test;
+            class BostonCream < Doughnut {
+                cook() {
+                    super.cook();
+                    print "Pipe full of custard and coat with chocolate!";
+                }
+            }
+
+            BostonCream().cook();
         ');
 
     Tokens := TheScanner.ScanTokens();

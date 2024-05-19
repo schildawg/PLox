@@ -2,16 +2,32 @@
 ///
 class LoxFunction;
 var
-    Declaration : FunctionStmt;
-    Closure     : Environment;
+    Declaration   : FunctionStmt;
+    Closure       : Environment;
+    IsInitializer : Boolean;
 
 begin
     /// Creates a new instance.
     ///
-    constructor Init (Declaration : FunctionStmt, Closure : Environment);
+    constructor Init (Declaration : FunctionStmt, Closure : Environment, IsInitializer : Boolean);
     begin
        this.Closure := Closure;
        this.Declaration := Declaration;
+       this.IsInitializer := IsInitializer;
+    end
+
+    /// Binds this method to an instance.
+    ///
+    function Bind (Instance : LoxInstance) : LoxFunction;
+    var
+        Env : Environment;
+
+    begin
+        Env := Environment();
+        Env.Enclosing := Closure;
+        Env.Define ('this', Instance);
+
+        Exit LoxFunction (Declaration, Env, IsInitializer);
     end
 
     /// Number of parameters in function signature.
@@ -36,6 +52,7 @@ begin
     var
         Env   : Environment;
         Count : Integer;
+
     begin
         Env := Environment();
         Env.Enclosing := Closure;
@@ -50,8 +67,11 @@ begin
         except
             on e : Return do
                 begin
+                    if IsInitializer then Exit Closure.GetAt (0, 'this');
                     Exit e.Value;
                 end
         end
+
+        if IsInitializer then Exit Closure.GetAt(0, 'this');
     end   
 end

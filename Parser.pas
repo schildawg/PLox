@@ -333,9 +333,10 @@ begin
             Value  := Assignment ();
 
             if TheExpr.ClassName = 'VariableExpr' then
-            begin
                 Exit AssignExpr (TheExpr.Name, Value);
-            end
+            else if TheExpr.ClassName = 'GetExpr' then
+                Exit SetExpr (TheExpr.Object, TheExpr.Name, Value);
+
             raise 'Invalid assignment target.';
         end
         Exit TheExpr;
@@ -395,16 +396,44 @@ begin
     function Declaration();
     begin
         //try 
+            if Match (TOKEN_CLASS) then Exit ClassDeclaration ();
             if Match (TOKEN_FUN) then Exit ParseFunction ('function');
             if Match (TOKEN_VAR) then Exit VarDeclaration ();
             Exit Statement ();
         //except
         //    on e : String do 
         //        begin
-        //           WriteLn (e);
-                   // Synchronize ();
+        //           Synchronize ();
         //        end
         //end
+    end
+
+    function ClassDeclaration ();
+    var
+        Name       : Token;
+        Methods    : List;
+        Superclass : VariableExpr;
+
+    begin
+        Name := Consume (TOKEN_IDENTIFIER, 'Expect class name.');
+        Superclass := Nil as VariableExpr;
+        if Match (TOKEN_LESS) then
+        begin
+           Consume (TOKEN_IDENTIFIER, 'Expect superclass name.');
+           Superclass := VariableExpr (Previous ());    
+        end
+
+        Consume (TOKEN_LEFT_BRACE, 'Expect "{" before class body.');
+
+        Methods := List();
+        while Not Check (TOKEN_RIGHT_BRACE) and Not IsAtEnd () do
+        begin
+            Methods.Add (ParseFunction ('method'));
+        end
+
+        Consume (TOKEN_RIGHT_BRACE, 'Expect "}" after class body.');
+
+        Exit ClassStmt (Name, Superclass, Methods);
     end
 
     // Parses an equality (!= ==).  Calls Comparison if no match.
@@ -511,16 +540,21 @@ begin
     function Call () : Expr;
     var
        TheExpr : Expr;
+       Name    : Token;
 
     begin
         TheExpr := Primary();
-
-        
+      
         while True do
         begin
             if Match (TOKEN_LEFT_PAREN) then
                 TheExpr := FinishCall (TheExpr);
-            else 
+            else if Match (TOKEN_DOT) then
+                begin
+                    Name := Consume (TOKEN_IDENTIFIER, 'Expect property name after ".".');
+                    TheExpr := GetExpr (TheExpr, Name);
+                end
+            else  
                 Break;
         end
         Exit TheExpr;
@@ -559,14 +593,17 @@ begin
 
     // Parses a primary expression:  True, False, Nil, Number, String or Grouping.
     //
-    // # Execeptions
+    // # Errors
     // 
-    // Throws an exception if grouping has no closing parenthesis.
-    // Throws an exception if no expression matched.
+    // Raises an error if grouping has no closing parenthesis.
+    // Raises an error if no dot after "super".
+    // Raises an error if no superclass method name.
+    // Raises an error if no expression matched.
     //
     function Primary() : Expr;
     var 
         TheExpr : Expr;
+        Keyword : Token;
 
     begin
         if Match (TOKEN_FALSE) then Exit LiteralExpr(False);
@@ -577,6 +614,16 @@ begin
         begin
             Exit LiteralExpr (Previous().Literal);
         end
+
+        if Match (TOKEN_SUPER) then
+        begin
+           Keyword := Previous();
+           Consume (TOKEN_DOT, 'Expect "." after "super".');  
+           Method := Consume (TOKEN_IDENTIFIER, 'Expect supercalss method name.');
+           Exit SuperExpr (Keyword, Method);  
+        end
+
+        if Match (TOKEN_THIS) then Exit ThisExpr (Previous());
 
         if Match (TOKEN_IDENTIFIER) then
         begin
@@ -1484,4 +1531,146 @@ begin
             end
     end
     Fail('No exception thrown.');
+end
+
+// Tests parsing a class!!
+//
+test 'Parse Class Declaration';
+begin
+    var TheScanner := Scanner ('
+        class Breakfast {
+            cook() {
+                print \"Egg a-frying!\";
+            } 
+
+            serve(who) {
+                print \"Enjoy your breakfast, \" + who + \".\";
+            }
+        }
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    TheParser.Declaration();
+end
+
+// Should return a parse error when there's no identifier.
+//
+test 'Parse Class No Identifier';
+begin
+    var TheScanner := Scanner ('class 123 {}');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect class name.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error when there's no opening brace.
+//
+test 'Parse Class No Opening Brace';
+begin
+    var TheScanner := Scanner ('class Breakfast');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect "{" before class body.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error when there's no closing brace.
+//
+test 'Parse Class No Closing Brace';
+begin
+    var TheScanner := Scanner ('class Breakfast {');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect "}" after class body.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Should return a parse error when parses < but no superclass name.
+//
+test 'Parse Class No Superclass';
+begin
+    var TheScanner := Scanner ('
+        class Breakfast < 123 {
+        cook() {
+            print \"Egg a-frying!\";
+        } 
+    ');
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+        TheParser.Declaration();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect superclass name.', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+
+// Class getter should have a valid property name.
+//
+test 'Parse Getter Valid Property Name';
+begin
+    var TheScanner := Scanner ('print bagel.123;');
+
+    var TheParser := Parser (TheScanner.ScanTokens());
+
+    try
+         TheParser.Statement();
+    except
+        on e : String do
+            begin
+                AssertEqual('Expect property name after ".".', e);
+                Exit;
+            end
+    end
+    Fail('No exception thrown.');
+end
+  
+
+// Tests getters!!
+//
+test 'Parse Getter';
+begin
+    var TheScanner := Scanner ('print egg.scramble(3).with(cheddar);');
+
+    var TheParser := Parser (TheScanner.ScanTokens());
+    TheParser.Statement();
+end
+
+// Tests setters!!
+//
+test 'Parse Setter';
+begin
+    var TheScanner := Scanner ('print eggs.count = 42;');
+
+    var TheParser := Parser (TheScanner.ScanTokens());
+    TheParser.Statement();
 end

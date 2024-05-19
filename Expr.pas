@@ -162,8 +162,82 @@ begin
     end
 end
 
-test 'Test Literals' ;
+/// Get Expression!
+///
+class GetExpr (Expr);
+var
+    Object : Expr;
+    Name   : Token;
+
 begin
-   
+    constructor Init(Object : Expr, Name : Token);
+    begin
+        this.Object := Object;
+        this.Name := Name;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitGetExpr(this);
+    end
 end
-  
+
+/// Set Expression!
+///
+class SetExpr (Expr);
+var
+    Object : Expr;
+    Name   : Token;
+    Value  : Expr;  
+
+begin
+    constructor Init(Object : Expr, Name : Token, Value : Expr);
+    begin
+        this.Object := Object;
+        this.Name := Name;
+        this.Value := Value;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitSetExpr(this);
+    end
+end
+
+/// This Expression!
+///
+class ThisExpr (Expr);
+var
+    Keyword : Token;
+    
+begin
+    constructor Init(Keyword : Token);
+    begin
+        this.Keyword := Keyword;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitThisExpr (this);
+    end
+end
+
+/// Super Expression!
+///
+class SuperExpr (Expr);
+var
+    Keyword : Token;
+    Method  : Token;
+
+begin
+    constructor Init(Keyword : Token, Method : Token);
+    begin
+        this.Keyword := Keyword;
+        this.Method := Method;
+    end
+
+    function Accept(Visitor);
+    begin
+       Exit Visitor.VisitSuperExpr (this);
+    end
+end

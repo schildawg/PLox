@@ -159,3 +159,25 @@ begin
        Exit Visitor.VisitReturnStmt(this);
     end   
 end
+
+/// Class Statement!
+///
+class ClassStmt (Stmt);
+var
+    Name       : Token;
+    Superclass : VariableExpr;
+    Methods    : List; 
+
+begin
+    constructor Init (Name : Token, Superclass : VariableExpr, Methods : List);
+    begin
+        this.Name := Name;
+        this.Superclass := Superclass;
+        this.Methods := Methods;
+    end
+
+    function Accept (Visitor);
+    begin
+       Exit Visitor.VisitClassStmt(this);
+    end   
+end
